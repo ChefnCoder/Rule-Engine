@@ -3,46 +3,11 @@ const router = express.Router();
 const Rule = require('../models/Rule');
 const createAST = require('../utils/astParser');
 
-// Define acceptable attributes and their expected types
-const allowedAttributes = {
-  age: 'number',
-  department: 'string'
-};
-
-// Enhanced function to validate attribute names and types in the AST
-const validateAttributes = (node) => {
-  if (node.type === 'BinaryExpression') {
-    const leftValid = validateAttributes(node.left);
-    const rightValid = validateAttributes(node.right);
-
-    // For BinaryExpression, ensure left is an Identifier and right is a Literal
-    if (node.left.type === 'Identifier' && node.right.type === 'Literal') {
-      const attributeName = node.left.name;
-      const expectedType = allowedAttributes[attributeName];
-      
-      // Return false if attribute or type is invalid
-      if (!expectedType) return false;
-      if (expectedType === 'number' && isNaN(Number(node.right.value))) return false;
-      if (expectedType === 'string' && typeof node.right.value !== 'string') return false;
-    }
-    return leftValid && rightValid;
-  } else if (node.type === 'Identifier') {
-    return allowedAttributes.hasOwnProperty(node.name);
-  }
-  return true;
-};
-
-// Create Rule Endpoint with attribute validation
+// Create Rule Endpoint
 router.post('/create', async (req, res) => {
   const { rule } = req.body;
   try {
     const ast = createAST(rule);
-    
-    // Validate attributes in AST
-    if (!validateAttributes(ast)) {
-      return res.status(400).json({ error: 'Invalid attribute or value type in rule' });
-    }
-
     const newRule = new Rule({ rule, ast });
     await newRule.save();
     res.status(201).json(newRule);
@@ -94,6 +59,9 @@ router.post('/evaluate', async (req, res) => {
     res.status(400).json({ error: 'Evaluation failed' });
   }
 });
+
+
+
 
 // Fetch all rules
 router.get('/list', async (req, res) => {
@@ -160,10 +128,12 @@ const generateRuleStringFromAST = (node) => {
   return '';
 };
 
-// Modify Rule Endpoint using findByIdAndUpdate with attribute validation
+// Modify Rule Endpoint using findByIdAndUpdate
 router.put('/modify/:id', async (req, res) => {
   const ruleId = req.params.id;
   const { modifications } = req.body;
+
+  console.log("Received modifications:", modifications); // Log modifications for debugging
 
   try {
     const rule = await Rule.findById(ruleId);
@@ -185,12 +155,7 @@ router.put('/modify/:id', async (req, res) => {
     };
 
     applyModifications(rule.ast, 'root');
-
-    // Validate attributes in modified AST
-    if (!validateAttributes(rule.ast)) {
-      return res.status(400).json({ error: 'Invalid attribute or value type in rule' });
-    }
-
+    
     const updatedRuleString = generateRuleStringFromAST(rule.ast);
     const updatedRule = await Rule.findByIdAndUpdate(
       ruleId,
@@ -204,5 +169,6 @@ router.put('/modify/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to modify rule' });
   }
 });
+
 
 module.exports = router;

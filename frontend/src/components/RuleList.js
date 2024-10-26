@@ -9,7 +9,8 @@ const RuleList = () => {
     const fetchRules = async () => {
       try {
         const ruleList = await getRules();
-        setRules(ruleList);
+        const rulesWithToggle = ruleList.map(rule => ({ ...rule, isVisible: false }));
+        setRules(rulesWithToggle);
       } catch (error) {
         console.error('Error fetching rules:', error);
       }
@@ -17,22 +18,40 @@ const RuleList = () => {
     fetchRules();
   }, []);
 
+  const toggleRuleVisibility = (id) => {
+    setRules(prevRules =>
+      prevRules.map(rule =>
+        rule._id === id ? { ...rule, isVisible: !rule.isVisible } : rule
+      )
+    );
+  };
+
   return (
-    <div className="p-6 max-w-2xl mx-auto bg-gray-100 rounded-lg shadow-lg mt-8">
-      <h2 className="text-3xl font-bold text-center mb-6 text-blue-700">Saved Rules</h2>
+    <div className="p-6 max-w-4xl mx-auto bg-gray-100 rounded-lg shadow-lg mt-8">
+      <h2 className="text-2xl font-semibold text-center mb-6 text-blue-700">Saved Rules</h2>
       {rules.length > 0 ? (
-        <ul className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {rules.map((rule) => (
-            <li key={rule._id} className="bg-white p-6 rounded-lg shadow-md">
-              <h4 className="text-xl font-semibold mb-4 text-purple-700">Rule: {rule.rule}</h4>
-              <div className="bg-gray-50 p-4 rounded-md">
-                <ASTNode node={rule.ast} />
+            <div key={rule._id} className="bg-white p-4 rounded-lg shadow-md">
+              <div className="flex justify-between items-center">
+                <h4 className="font-medium text-sm text-purple-700">Rule: {rule.rule}</h4>
+                <button
+                  onClick={() => toggleRuleVisibility(rule._id)}
+                  className="text-xs text-blue-500 hover:underline"
+                >
+                  {rule.isVisible ? "Hide Details" : "Show Details"}
+                </button>
               </div>
-            </li>
+              {rule.isVisible && (
+                <div className="bg-gray-50 p-3 mt-2 rounded-md text-xs">
+                  <ASTNode node={rule.ast} />
+                </div>
+              )}
+            </div>
           ))}
-        </ul>
+        </div>
       ) : (
-        <p className="text-center text-gray-600">No rules found.</p>
+        <p className="text-center text-gray-600 text-sm">No rules found.</p>
       )}
     </div>
   );
