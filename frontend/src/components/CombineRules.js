@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getRules, combineRules } from '../services/ruleService';
+import ASTNode from './ASTNode'; // Update path based on your folder structure
 
 const CombineRules = () => {
   const [rules, setRules] = useState([]);
@@ -7,7 +8,6 @@ const CombineRules = () => {
   const [operator, setOperator] = useState('&&');
   const [combinedResult, setCombinedResult] = useState(null);
 
-  // Fetch rules on component mount
   useEffect(() => {
     const fetchRules = async () => {
       try {
@@ -20,21 +20,17 @@ const CombineRules = () => {
     fetchRules();
   }, []);
 
-  // Handle rule selection
   const handleRuleSelection = (ruleId) => {
-    setSelectedRules((prevSelected) => {
-      if (prevSelected.includes(ruleId)) {
-        return prevSelected.filter(id => id !== ruleId);
-      } else {
-        return [...prevSelected, ruleId];
-      }
-    });
+    setSelectedRules((prevSelected) =>
+      prevSelected.includes(ruleId)
+        ? prevSelected.filter((id) => id !== ruleId)
+        : [...prevSelected, ruleId]
+    );
   };
 
-  // Handle Combine action
   const handleCombine = async () => {
     if (selectedRules.length < 2) {
-      alert("Please select at least two rules to combine.");
+      alert('Please select at least two rules to combine.');
       return;
     }
     try {
@@ -46,36 +42,46 @@ const CombineRules = () => {
   };
 
   return (
-    <div>
-      <h2>Combine Rules</h2>
-      <div>
-        <h3>Select Rules to Combine:</h3>
-        {rules.map((rule) => (
-          <div key={rule._id}>
-            <input
-              type="checkbox"
-              checked={selectedRules.includes(rule._id)}
-              onChange={() => handleRuleSelection(rule._id)}
-            />
-            <label>{rule.rule}</label>
-          </div>
-        ))}
+    <div className="p-4 max-w-xl mx-auto bg-white rounded-lg shadow-md">
+      <h2 className="text-2xl font-semibold mb-4 text-center">Combine Rules</h2>
+      <div className="mb-4">
+        <h3 className="text-lg font-medium">Select Rules to Combine:</h3>
+        <div className="space-y-2">
+          {rules.map((rule) => (
+            <label key={rule._id} className="block">
+              <input
+                type="checkbox"
+                checked={selectedRules.includes(rule._id)}
+                onChange={() => handleRuleSelection(rule._id)}
+                className="mr-2"
+              />
+              {rule.rule}
+            </label>
+          ))}
+        </div>
       </div>
-
-      <div>
-        <h3>Select Operator:</h3>
-        <select value={operator} onChange={(e) => setOperator(e.target.value)}>
+      <div className="mb-4">
+        <h3 className="text-lg font-medium">Select Operator:</h3>
+        <select
+          value={operator}
+          onChange={(e) => setOperator(e.target.value)}
+          className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
+        >
           <option value="&&">AND</option>
           <option value="||">OR</option>
         </select>
       </div>
-
-      <button onClick={handleCombine}>Combine Selected Rules</button>
+      <button
+        onClick={handleCombine}
+        className="w-full py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+      >
+        Combine Selected Rules
+      </button>
 
       {combinedResult && (
-        <div>
-          <h4>Combined Rule AST:</h4>
-          <pre>{JSON.stringify(combinedResult.ast, null, 2)}</pre>
+        <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+          <h4 className="font-semibold">Combined Rule AST:</h4>
+          <ASTNode node={combinedResult.ast} />
         </div>
       )}
     </div>

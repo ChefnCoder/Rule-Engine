@@ -3,11 +3,46 @@ const router = express.Router();
 const Rule = require('../models/Rule');
 const createAST = require('../utils/astParser');
 
-// Create Rule Endpoint
+// Define acceptable attributes and their expected types
+const allowedAttributes = {
+  age: 'number',
+  department: 'string'
+};
+
+// Enhanced function to validate attribute names and types in the AST
+const validateAttributes = (node) => {
+  if (node.type === 'BinaryExpression') {
+    const leftValid = validateAttributes(node.left);
+    const rightValid = validateAttributes(node.right);
+
+    // For BinaryExpression, ensure left is an Identifier and right is a Literal
+    if (node.left.type === 'Identifier' && node.right.type === 'Literal') {
+      const attributeName = node.left.name;
+      const expectedType = allowedAttributes[attributeName];
+      
+      // Return false if attribute or type is invalid
+      if (!expectedType) return false;
+      if (expectedType === 'number' && isNaN(Number(node.right.value))) return false;
+      if (expectedType === 'string' && typeof node.right.value !== 'string') return false;
+    }
+    return leftValid && rightValid;
+  } else if (node.type === 'Identifier') {
+    return allowedAttributes.hasOwnProperty(node.name);
+  }
+  return true;
+};
+
+// Create Rule Endpoint with attribute validation
 router.post('/create', async (req, res) => {
   const { rule } = req.body;
   try {
     const ast = createAST(rule);
+    
+    // Validate attributes in AST
+    if (!validateAttributes(ast)) {
+      return res.status(400).json({ error: 'Invalid attribute or value type in rule' });
+    }
+
     const newRule = new Rule({ rule, ast });
     await newRule.save();
     res.status(201).json(newRule);
@@ -116,34 +151,26 @@ const generateRuleStringFromAST = (node) => {
   } else if (node.type === 'Identifier') {
     return node.name;
   } else if (node.type === 'Literal') {
-    // Check if this literal value is a string that represents a number
     const numericValue = parseFloat(node.value);
-    // If it's a numeric value (e.g., "40" becomes 40), return it as a number
     if (!isNaN(numericValue) && node.value === numericValue.toString()) {
       return numericValue;
     }
-    // Otherwise, return it as a string wrapped in quotes
     return `'${node.value}'`;
   }
   return '';
 };
 
-
-
-/// Modify Rule Endpoint using findByIdAndUpdate
-// Modify Rule Endpoint using findByIdAndUpdate
+// Modify Rule Endpoint using findByIdAndUpdate with attribute validation
 router.put('/modify/:id', async (req, res) => {
   const ruleId = req.params.id;
   const { modifications } = req.body;
 
   try {
-    // Fetch the rule by ID to get the current AST structure
     const rule = await Rule.findById(ruleId);
     if (!rule) {
       return res.status(404).json({ error: 'Rule not found' });
     }
 
-    // Apply modifications to the AST
     const applyModifications = (node, path) => {
       if (modifications[path]) {
         const nodeModifications = modifications[path];
@@ -153,23 +180,22 @@ router.put('/modify/:id', async (req, res) => {
           node.raw = typeof node.value === "string" ? `'${node.value}'` : `${node.value}`;
         }
       }
-
-      // Traverse to child nodes using updated paths
       if (node.left) applyModifications(node.left, `${path}.left`);
       if (node.right) applyModifications(node.right, `${path}.right`);
     };
 
-    // Start applying modifications from the root node
     applyModifications(rule.ast, 'root');
 
-    // Generate the new rule string from the updated AST
-    const updatedRuleString = generateRuleStringFromAST(rule.ast);
+    // Validate attributes in modified AST
+    if (!validateAttributes(rule.ast)) {
+      return res.status(400).json({ error: 'Invalid attribute or value type in rule' });
+    }
 
-    // Use findByIdAndUpdate to update both the AST and the rule string
+    const updatedRuleString = generateRuleStringFromAST(rule.ast);
     const updatedRule = await Rule.findByIdAndUpdate(
       ruleId,
       { ast: rule.ast, rule: updatedRuleString },
-      { new: true } // Return the updated document
+      { new: true }
     );
 
     res.status(200).json(updatedRule);
