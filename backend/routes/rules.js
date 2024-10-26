@@ -74,22 +74,17 @@ router.get('/list', async (req, res) => {
 router.post('/combine', async (req, res) => {
   const { ruleIds, operator } = req.body;
 
-  // Check if operator is valid
   if (operator !== '&&' && operator !== '||') {
     return res.status(400).json({ error: 'Invalid operator. Use && or ||.' });
   }
 
   try {
-    // Fetch each rule by its ID from the database
     const rules = await Rule.find({ _id: { $in: ruleIds } });
     if (rules.length !== ruleIds.length) {
       return res.status(404).json({ error: 'One or more rules not found.' });
     }
 
-    // Extract ASTs from each rule
     const asts = rules.map(rule => rule.ast);
-
-    // Combine ASTs under a new root node with the specified operator
     const combinedAST = asts.reduce((accumulator, currentAST) => {
       return {
         type: 'LogicalExpression',
@@ -99,7 +94,6 @@ router.post('/combine', async (req, res) => {
       };
     });
 
-    // Save the combined rule to the database
     const combinedRule = new Rule({
       rule: `Combined rule with ${operator}`,
       ast: combinedAST
@@ -110,6 +104,78 @@ router.post('/combine', async (req, res) => {
   } catch (error) {
     console.error('Error combining rules:', error);
     res.status(500).json({ error: 'Failed to combine rules' });
+  }
+});
+
+// Helper function to generate a rule string from the AST
+const generateRuleStringFromAST = (node) => {
+  if (node.type === 'BinaryExpression') {
+    const left = generateRuleStringFromAST(node.left);
+    const right = generateRuleStringFromAST(node.right);
+    return `${left} ${node.operator} ${right}`;
+  } else if (node.type === 'Identifier') {
+    return node.name;
+  } else if (node.type === 'Literal') {
+    // Check if this literal value is a string that represents a number
+    const numericValue = parseFloat(node.value);
+    // If it's a numeric value (e.g., "40" becomes 40), return it as a number
+    if (!isNaN(numericValue) && node.value === numericValue.toString()) {
+      return numericValue;
+    }
+    // Otherwise, return it as a string wrapped in quotes
+    return `'${node.value}'`;
+  }
+  return '';
+};
+
+
+
+/// Modify Rule Endpoint using findByIdAndUpdate
+// Modify Rule Endpoint using findByIdAndUpdate
+router.put('/modify/:id', async (req, res) => {
+  const ruleId = req.params.id;
+  const { modifications } = req.body;
+
+  try {
+    // Fetch the rule by ID to get the current AST structure
+    const rule = await Rule.findById(ruleId);
+    if (!rule) {
+      return res.status(404).json({ error: 'Rule not found' });
+    }
+
+    // Apply modifications to the AST
+    const applyModifications = (node, path) => {
+      if (modifications[path]) {
+        const nodeModifications = modifications[path];
+        if (nodeModifications.operator !== undefined) node.operator = nodeModifications.operator;
+        if (nodeModifications.value !== undefined) {
+          node.value = nodeModifications.value;
+          node.raw = typeof node.value === "string" ? `'${node.value}'` : `${node.value}`;
+        }
+      }
+
+      // Traverse to child nodes using updated paths
+      if (node.left) applyModifications(node.left, `${path}.left`);
+      if (node.right) applyModifications(node.right, `${path}.right`);
+    };
+
+    // Start applying modifications from the root node
+    applyModifications(rule.ast, 'root');
+
+    // Generate the new rule string from the updated AST
+    const updatedRuleString = generateRuleStringFromAST(rule.ast);
+
+    // Use findByIdAndUpdate to update both the AST and the rule string
+    const updatedRule = await Rule.findByIdAndUpdate(
+      ruleId,
+      { ast: rule.ast, rule: updatedRuleString },
+      { new: true } // Return the updated document
+    );
+
+    res.status(200).json(updatedRule);
+  } catch (error) {
+    console.error('Error modifying rule:', error);
+    res.status(500).json({ error: 'Failed to modify rule' });
   }
 });
 

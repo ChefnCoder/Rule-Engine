@@ -22,3 +22,8 @@ export const combineRules = async (ruleIds, operator) => {
     const response = await axios.post(`${API_URL}/combine`, { ruleIds, operator });
     return response.data;
 };
+
+export const modifyRule = async (ruleId, modifications) => {
+  const response = await axios.put(`${API_URL}/modify/${ruleId}`, { modifications });
+  return response.data;
+};
